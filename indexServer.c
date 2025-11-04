@@ -105,49 +105,29 @@ main(int argc, char *argv[])
     n = recvfrom(s, &spdu, sizeof(buf), 0, (struct sockaddr *)&fsin, &alen);
     printf("Received request for file: %s\n", spdu.data);
     buf[n] = '\0'; // Null-terminate the received string
-    ptr = fopen( spdu.data, "r");
 
-
-    // Failed Condition
-    if (ptr == NULL) {
-      // Send error message with '0' prefix
-      spdu.type = 'E';
-    strcpy(spdu.data, "error: File not found");
-
-      sendto(s, &spdu, sizeof(spdu), 0,(struct sockaddr *)&fsin, sizeof(fsin));
-
-
-
-
-      printf("File Not Found. Sending Error Message.\n");
-
-
-      return(0);
-      }
-    lstat(spdu.data, &file_info);
-    long file_size = file_info.st_size;
-    while (file_size>100) {
-        spdu.type = 'D';
-        bytes_to_read = fread(spdu.data, 1, 100, ptr); // Read up to 100 bytes
-        file_size -= bytes_to_read;
-    spdu.data[strlen(spdu.data)] = '\0';
-        sendto(s, &spdu, sizeof(spdu), 0,(struct sockaddr *)&fsin, sizeof(fsin));
-        printf("Sent %d bytes of file data.\n", bytes_to_read);
-    memset(spdu.data,'\0',sizeof(spdu.data));
+    switch (spdu.type) {
+        case 'R':
+            // Handle registration
+            // (Implementation for registration can be added here)
+            break;
+        case 'O':
+            // Handle query
+            // (Implementation for query can be added here)
+            break;
+        case 'S':
+            // Handle sneding address to peer
+            // (Implementation for download can be added here)
+            break;
+        case 'T':
+            // Handle De-registration
+            // (Implementation for download can be added here)
+            break;
+        default:
+            // Error: Invalid Use
+            // (Implementation for other cases can be added here)
+            break;
+    }
     
-    }
-
-
-        spdu.type = 'F';
-        bytes_to_read = fread(spdu.data, 1, file_size, ptr); // Read up to 100 bytes
-    spdu.data[strlen(spdu.data)] = '\0';
-        file_size -= bytes_to_read;
-      sendto(s, &spdu, sizeof(spdu), 0,(struct sockaddr *)&fsin, sizeof(fsin));
-        printf("Final Sent %d bytes of file data.\n", bytes_to_read);
-    memset(spdu.data,'\0',sizeof(spdu.data));
-
-    fclose(ptr);
-    }
-    }
 }
 
