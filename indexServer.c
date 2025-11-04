@@ -82,7 +82,7 @@ main(int argc, char *argv[])
     while (1) {
        
 // File Pointer declared
-        FILE* ptr;
+    FILE* ptr;
     char full_path[512];
       // File opened
     char    *bp, buf[256],fbuf[101]; // 1 byte for flag, 100 bytes of data
@@ -92,12 +92,6 @@ main(int argc, char *argv[])
 
 
 
-
-
-
-
-
-    while (1) {
     struct pdu spdu;
     struct stat file_info;
 
@@ -129,5 +123,7 @@ main(int argc, char *argv[])
             break;
     }
     
+}
+
 }
 
