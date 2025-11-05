@@ -11,9 +11,6 @@
 #include <time.h>
 #include <sys/stat.h>
 
-
-
-
 struct pdu {
     char type;
     char data[100];    
@@ -25,15 +22,12 @@ struct indexData {
 	int address;
 }
 
-indexData RegisteredServers[100]; // array of indexData
-
-
+indexData RegisteredContent[100]; // array of indexData
 
 /*------------------------------------------------------------------------
  * main - Iterative UDP server for TIME service
  *------------------------------------------------------------------------
  */
-
 
 int
 main(int argc, char *argv[])
@@ -48,8 +42,6 @@ main(int argc, char *argv[])
         int     s, type;        /* socket descriptor and socket type    */
     int     port=3000;
                                                                                
-
-
     switch(argc){
         case 1:
             break;
@@ -78,26 +70,22 @@ main(int argc, char *argv[])
         listen(s, 5);    
     alen = sizeof(fsin);
 
-
-    while (1) {
-       
-// File Pointer declared
+    while (1) {   
+    
+    // File Pointer declared
     FILE* ptr;
     char full_path[512];
-      // File opened
+    // File opened
     char    *bp, buf[256],fbuf[101]; // 1 byte for flag, 100 bytes of data
     int     n, bytes_to_read;
     int ch; // Use int to store the character, as EOF is an int
     int count=0;
 
-
-
     struct pdu spdu;
     struct stat file_info;
 
-
     n = recvfrom(s, &spdu, sizeof(buf), 0, (struct sockaddr *)&fsin, &alen);
-    printf("Received request for file: %s\n", spdu.data);
+    printf("Received request w/ data: %s\n", spdu.data);
     buf[n] = '\0'; // Null-terminate the received string
 
     switch (spdu.type) {
@@ -121,9 +109,7 @@ main(int argc, char *argv[])
             // Error: Invalid Use
             // (Implementation for other cases can be added here)
             break;
+        }
     }
-    
-}
-
 }
 
