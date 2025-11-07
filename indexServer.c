@@ -16,14 +16,38 @@ struct pdu {
     char data[100];    
 };
 
+struct sData {
+    char pName[10];
+    char cName[90];
+};
+
 struct indexData {
-	char *peerName;
-	char *contentName
-	int address;
+	char peerName[10];
+	char contentName[10];
+	struct  sockaddr_in address;
+    int uses;
+};
+
+struct indexData RegisteredContent[];
+int registeredCount = 0;
+
+struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount) {
+    int leastUses = -1;
+    struct indexData* result = NULL;
+    char buffer[100];
+    char temp[100];
+    memcpy(temp, contentName, sizeof(temp)-1);
+
+    temp[strcspn(temp, "\n")] = 0; // Remove newline character if present
+    for (int i = 0; i < registeredCount; i++) {
+        if ( strcmp(RegisteredContent[i].contentName, temp) == 0 && (leastUses == -1 || RegisteredContent[i].uses < leastUses)) {
+            leastUses = RegisteredContent[i].uses;
+            result = &RegisteredContent[i];
+        } 
+    }
+    result->uses += 1; // Increment usage count
+    return result;
 }
-
-indexData RegisteredContent[100]; // array of indexData
-
 /*------------------------------------------------------------------------
  * main - Iterative UDP server for TIME service
  *------------------------------------------------------------------------
@@ -41,7 +65,7 @@ main(int argc, char *argv[])
     struct  sockaddr_in sin; /* an Internet endpoint address         */
         int     s, type;        /* socket descriptor and socket type    */
     int     port=3000;
-                                                                               
+
     switch(argc){
         case 1:
             break;
@@ -86,7 +110,7 @@ main(int argc, char *argv[])
 
     n = recvfrom(s, &spdu, sizeof(buf), 0, (struct sockaddr *)&fsin, &alen);
     printf("Received request w/ data: %s\n", spdu.data);
-    buf[n] = '\0'; // Null-terminate the received string
+   // buf[n] = '\0'; // Null-terminate the received string
 
     switch (spdu.type) {
         case 'R':
@@ -98,8 +122,26 @@ main(int argc, char *argv[])
             // (Implementation for query can be added here)
             break;
         case 'S':
-            // Handle sneding address to peer
-            // (Implementation for download can be added here)
+            struct sData sd;
+            memcpy(&sd, &spdu.data, sizeof(sd)-1);
+            printf("Request sent to server for name: %s", sd.pName);
+            printf("Request sent to server for file: %s", sd.cName); 
+
+            struct indexData* content = findContentByName(sd.cName, RegisteredContent, registeredCount);  
+            if(content != NULL) {
+                content->uses += 1; // Increment usage count
+                struct pdu responsePdu;
+                responsePdu.type = 'S'; // A for Acknowledge
+                memcpy(responsePdu.data, sd.pName, sizeof(sd.pName)-1);
+                memcpy(&responsePdu.data[10], &(content->address), sizeof(content->address)-1);
+                sendto(s, &responsePdu, sizeof(responsePdu), 0, (struct sockaddr *)&fsin, alen);
+            } else {
+                struct pdu responsePdu;
+                responsePdu.type = 'E'; // E for Error
+                char* errorMsg = "Content not found";
+                strncpy(responsePdu.data, errorMsg, sizeof(responsePdu.data)-1);
+                sendto(s, &responsePdu, sizeof(responsePdu), 0, (struct sockaddr *)&fsin, alen);
+            }
             break;
         case 'T':
             // Handle De-registration
@@ -112,4 +154,5 @@ main(int argc, char *argv[])
         }
     }
 }
+
 
