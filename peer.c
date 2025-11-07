@@ -72,7 +72,7 @@ int main(int argc, char **argv)
         sin.sin_port = htons(port);
                                                                                        
     /* Map host name to IP address, allowing for dotted decimal */
-    if ( phe = gethostbyname(host) ){
+    if ( (phe = gethostbyname(host)) ){
         memcpy(&sin.sin_addr, phe->h_addr, phe->h_length);
     }
     else if ( (sin.sin_addr.s_addr = inet_addr(host)) == INADDR_NONE )
@@ -80,13 +80,16 @@ int main(int argc, char **argv)
                                                                             
     /* Allocate a socket */
     s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0)
-    fprintf(stderr, "Can't create socket \n");
+    if (s < 0) {
+        fprintf(stderr, "Can't create socket \n");
+
+    }
 
                                                                                
     /* Connect the socket */
-    if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0)
-    fprintf(stderr, "Can't connect to %s %s \n", host, "Time");
+    if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        fprintf(stderr, "Can't connect to %s %s \n", host, "Time");
+    }
 
     fd_set rfds, afds;
     FD_ZERO(&afds);
@@ -156,13 +159,15 @@ int main(int argc, char **argv)
                     /* Allocate a socket */
                     int s2;
                     s2 = socket(AF_INET, SOCK_DGRAM, 0);
-                    if (s2 < 0)
-                    fprintf(stderr, "Can't create socket \n");
-
+                    if (s2 < 0) {
+                        fprintf(stderr, "Can't create socket \n");
+                    }
                                                                                
                     /* Connect the socket */
-                    if (connect(s2, (struct sockaddr *)&address, sizeof(address)) < 0)
-                    fprintf(stderr, "Can't connect to %s \n", host);
+                    if (connect(s2, (struct sockaddr *)&address, sizeof(address)) < 0) {
+
+                        fprintf(stderr, "Can't connect to %s \n", host);
+                    }
 
                     // Now request the file from the peer
                     struct pdu filePdu;
