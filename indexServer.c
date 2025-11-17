@@ -11,6 +11,8 @@
 #include <time.h>
 #include <sys/stat.h>
 
+#define MAX 100
+
 struct pdu {
     char type;
     char data[100];    
@@ -28,7 +30,16 @@ struct indexData {
     int uses;
 };
 
-struct indexData RegisteredContent[];
+struct rData {
+    char pName[10];
+    char cName[10]; // MAY NEED TO MODIFY
+    struct  sockaddr_in address;
+};
+
+int contentExists(char* cName, char* pName, struct indexData* RegisteredContent, int registeredCount);
+int sendErrorMessage(int s, struct sockaddr_in* fsin, socklen_t alen, const char* message);
+
+struct indexData RegisteredContent[MAX];
 int registeredCount = 0;
 
 struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount) {
@@ -61,7 +72,7 @@ main(int argc, char *argv[])
     char    *pts;
     int    sock;            /* server socket        */
     time_t    now;            /* current time            */
-    int    alen;            /* from-address length        */
+    socklen_t alen;            /* from-address length        */
     struct  sockaddr_in sin; /* an Internet endpoint address         */
         int     s, type;        /* socket descriptor and socket type    */
     int     port=3000;
@@ -89,9 +100,11 @@ main(int argc, char *argv[])
         fprintf(stderr, "can't creat socket\n");
                                                                                
     /* Bind the socket */
-        if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+    if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
         fprintf(stderr, "can't bind to %d port\n",port);
-        listen(s, 5);    
+    }
+    
+    listen(s, 5);    
     alen = sizeof(fsin);
 
     while (1) {   
@@ -108,20 +121,64 @@ main(int argc, char *argv[])
     struct pdu spdu;
     struct stat file_info;
 
-    n = recvfrom(s, &spdu, sizeof(buf), 0, (struct sockaddr *)&fsin, &alen);
+    n = recvfrom(s, &spdu, sizeof(spdu), 0, (struct sockaddr *)&fsin, &alen);
     printf("Received request w/ data: %s\n", spdu.data);
    // buf[n] = '\0'; // Null-terminate the received string
 
     switch (spdu.type) {
-        case 'R':
+        case 'R': {
             // Handle registration
             // (Implementation for registration can be added here)
+            struct rData rd;
+            memcpy(&rd, &spdu.data, sizeof(rd)-1);
+            printf("Registering content: %s from peer: %s\n", rd.cName, rd.pName);
+
+            // Check for registration limit and existing content
+            if(registeredCount > MAX) {
+                fprintf(stderr, "Registration limit reached. Cannot register more content.\n");
+            } 
+
+            if (contentExists(rd.cName, rd.pName, RegisteredContent, registeredCount) != -1) {
+                // Content already registered, send error message
+                fprintf(stderr, "Content %s is already registered. Skipping registration.\n", rd.cName);
+                sendErrorMessage(s, &fsin, alen, "Content already registered");
+            } else {
+
+                // Add new content registration
+                struct indexData newContent;
+                strncpy(newContent.peerName, rd.pName, sizeof(newContent.peerName)-1);
+                strncpy(newContent.contentName, rd.cName, sizeof(newContent.contentName)-1);
+                memcpy(&newContent.address, &rd.address, sizeof(rd.address));
+                newContent.uses = 0; // Initialize usage count
+                RegisteredContent[registeredCount++] = newContent;
+                printf("Content %s registered successfully from peer %s.\n", rd.cName, rd.pName);
+
+                // Acknowledge registration to client
+                struct pdu okPdu;
+                okPdu.type = 'A'; // A for Acknowledge
+                //set data to say "Registration Successful"
+                strncpy(okPdu.data, "Registration Successful", sizeof(okPdu.data)-1);
+                sendto(s, &okPdu, sizeof(okPdu), 0, (struct sockaddr *)&fsin, alen);
+            }
             break;
-        case 'O':
+        }
+        case 'O': { 
             // Handle query
             // (Implementation for query can be added here)
+            struct pdu od;
+            // create a string (limit to 100 bytes) with all registered content names
+            char contentList[100] = "";
+            for(int i = 0; i < registeredCount; i++) {
+                strncat(contentList, RegisteredContent[i].contentName, sizeof(RegisteredContent[i].contentName)-1);
+                strncat(contentList, "\n", 1); // Newline separator
+            }
+            // Send back the list of content names
+            od.type = 'O'; // O for OK
+            strncpy(od.data, contentList, sizeof(od.data)-1);
+            sendto(s, &od, sizeof(od), 0, (struct sockaddr *)&fsin, alen);
             break;
-        case 'S':
+        }
+        case 'S': {
             struct sData sd;
             memcpy(&sd, &spdu.data, sizeof(sd)-1);
             printf("Request sent to server for name: %s", sd.pName);
@@ -143,16 +200,53 @@ main(int argc, char *argv[])
                 sendto(s, &responsePdu, sizeof(responsePdu), 0, (struct sockaddr *)&fsin, alen);
             }
             break;
-        case 'T':
+        }
+        case 'T': {
             // Handle De-registration
             // (Implementation for download can be added here)
+            struct rData td;
+            memcpy(&td, &spdu.data, sizeof(td)-1);
+            // Verify if content exists before de-registering
+            int index = contentExists(td.cName, td.pName, RegisteredContent, registeredCount);
+            if (index == -1) {
+                fprintf(stderr, "Content %s is not registered. Skipping de-registration.\n", td.cName);
+                sendErrorMessage(s, &fsin, alen, "Content not registered");
+            } else {
+                // use index to remove the content from RegisteredContent
+                // Shift elements to remove the content
+                for (int i = index; i < registeredCount - 1; i++) {
+                    RegisteredContent[i] = RegisteredContent[i + 1];
+                }
+                registeredCount--;
+                printf("Content %s de-registered successfully from peer %s.\n", td.cName, td.pName);
+
+            }
+
             break;
+        }
         default:
             // Error: Invalid Use
             // (Implementation for other cases can be added here)
+            sendErrorMessage(s, &fsin, alen, "Invalid request type");
             break;
         }
     }
 }
 
 
+
+int contentExists(char* cName, char* pName,struct indexData* RegisteredContent, int registeredCount) {
+    for (int i = 0; i < registeredCount; i++) {
+        if ((strcmp(RegisteredContent[i].contentName, cName) == 0) && (strcmp(RegisteredContent[i].peerName, pName) == 0)) {
+            return i; // Content exists
+        }
+    }
+    return -1; // Content does not exist
+}
+
+int sendErrorMessage(int s, struct sockaddr_in* fsin, socklen_t alen, const char* message) {
+    struct pdu errorPdu;
+    errorPdu.type = 'E'; // E for Error
+    strncpy(errorPdu.data, message, sizeof(errorPdu.data)-1);
+    return sendto(s, &errorPdu, sizeof(errorPdu), 0, (struct sockaddr *)fsin, alen);
+}

@@ -24,15 +24,24 @@ int echod(int);
 int filed(int);
 void reaper(int);
 
+// Main PDU Structure
 struct pdu {
     char type;
     char data[100];    
 };
 
+struct rData {
+    char pName[10];
+    char cName[10]; // MAY NEED TO MODIFY
+    struct  sockaddr_in address;
+};
+
+// File Search Structure
 struct sData {
     char pName[10];
     char cName[90];
 };
+
 int registerContent(char* pName, char* cName)
 {
     // Registration code here
@@ -123,9 +132,13 @@ int main(int argc, char **argv)
             memset(buf, '\0', sizeof(buf)); // Clears the entire array
             n = read(0, buf, BUFLEN);
             buf[n] = 0;
+            
+            
             if (strncmp(buf, "1", 1) == 0) {
                 //Register code
             }
+            
+            
             else if (strncmp(buf, "2", 1) == 0) {
                 //Download code
                 struct pdu pduSend;
