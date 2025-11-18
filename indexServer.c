@@ -56,7 +56,9 @@ struct indexData* findContentByName(const char* contentName, struct indexData* R
             result = &RegisteredContent[i];
         } 
     }
-    result->uses += 1; // Increment usage count
+    if (result != NULL) {
+        result->uses += 1; // Increment usage count
+    }
     return result;
 }
 /*------------------------------------------------------------------------
@@ -168,12 +170,27 @@ main(int argc, char *argv[])
             struct pdu od;
             // create a string (limit to 100 bytes) with all registered content names
             char contentList[100] = "";
-            for(int i = 0; i < registeredCount; i++) {
-                strncat(contentList, RegisteredContent[i].contentName, sizeof(RegisteredContent[i].contentName)-1);
-                strncat(contentList, "\n", 1); // Newline separator
+            for (int i = 0; i < registeredCount; i++) {
+                /* Append safely: always compute remaining space in the destination
+                 * and pass that as the maximum number of bytes to copy. This
+                 * avoids passing the literal source length (which can equal
+                 * the bound and trigger -Wstringop-overflow warnings) and
+                 * prevents buffer overruns.
+                 */
+                size_t rem = sizeof(contentList) - strlen(contentList) - 1;
+                if (rem > 0) strncat(contentList, RegisteredContent[i].contentName, rem);
+
+                rem = sizeof(contentList) - strlen(contentList) - 1;
+                if (rem > 0) strncat(contentList, " from ", rem); // Space separator
+
+                rem = sizeof(contentList) - strlen(contentList) - 1;
+                if (rem > 0) strncat(contentList, RegisteredContent[i].peerName, rem);
+
+                rem = sizeof(contentList) - strlen(contentList) - 1;
+                if (rem > 0) strncat(contentList, "\n", rem); // Newline separator
             }
             // Send back the list of content names
-            od.type = 'O'; // O for OK
+            od.type = 'O'; // O for confirming list ready
             strncpy(od.data, contentList, sizeof(od.data)-1);
             sendto(s, &od, sizeof(od), 0, (struct sockaddr *)&fsin, alen);
             break;
@@ -204,7 +221,7 @@ main(int argc, char *argv[])
         case 'T': {
             // Handle De-registration
             // (Implementation for download can be added here)
-            struct rData td;
+            struct sData td;
             memcpy(&td, &spdu.data, sizeof(td)-1);
             // Verify if content exists before de-registering
             int index = contentExists(td.cName, td.pName, RegisteredContent, registeredCount);
@@ -219,6 +236,13 @@ main(int argc, char *argv[])
                 }
                 registeredCount--;
                 printf("Content %s de-registered successfully from peer %s.\n", td.cName, td.pName);
+
+                // Send Acknowledgment to client
+                struct pdu okPdu;
+                okPdu.type = 'A'; // A for Acknowledge
+                //set data to say "De-registration Successful"
+                strncpy(okPdu.data, "De-registration Successful", sizeof(okPdu.data)-1);
+                sendto(s, &okPdu, sizeof(okPdu), 0, (struct sockaddr *)&fsin, alen);
 
             }
 
