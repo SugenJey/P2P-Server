@@ -55,7 +55,8 @@ int main_udp_socket;
 
 int registerContent(int udp_sock, char* pName, char* cName);
 void handleContentDownload(int tcp_sock);
-void deregisterContent(int udp_sock, char* pName, int index);
+int deregisterContent(int udp_sock, char* pName, int index, fd_set *afds);
+void cleanupAndExit(int udp_sock, char* pName, fd_set *afds);
 
 
 int main(int argc, char **argv)
@@ -262,6 +263,7 @@ int main(int argc, char **argv)
                     if (ptr == NULL) {
                         printf("error opening file\n");
                         close(s2);
+                        cleanupAndExit(s, pName, &afds);
                         return(0);    
                     }
                     int bytes_to_read;
@@ -289,27 +291,27 @@ int main(int argc, char **argv)
                 //De - Register code
                 if (content_count == 0) {
                     printf("No content registered to de-register.\n");
-                    break;
-                }
-                printf("what would you like to de-register?(Enter file name):\n");
-                for (int i = 0; i < content_count; i++) {
-                    printf("%2d) %s (peer: %s)\n", i + 1, registered_content[i].cName, pName);
-                }
-                memset(buf, '0', sizeof(buf)); // Clears the entire array
-                n = read(0, buf, BUFLEN);
-                buf[n] = 0;
-                buf[strcspn(buf, "\n")] = 0; // Remove newline character if present
-
-                // if (n != 1) {
-                //     printf("Invalid selection. Please try again.\n");
-                //     break;
-                // }
-                int index = atoi(buf) - 1;
-                if (index < 0 || index >= content_count) {
-                    printf("Invalid selection. Please try again.\n");
                 } else {
-                    char* cName = registered_content[index].cName;
-                    deregisterContent(s, pName, index);
+                    
+                    printf("what would you like to de-register?(Enter file name):\n");
+                    for (int i = 0; i < content_count; i++) {
+                        printf("%2d) %s (peer: %s)\n", i + 1, registered_content[i].cName, pName);
+                    }
+                    memset(buf, '0', sizeof(buf)); // Clears the entire array
+                    n = read(0, buf, BUFLEN);
+                    buf[n] = 0;
+                    buf[strcspn(buf, "\n")] = 0; // Remove newline character if present
+    
+                    // if (n != 1) {
+                    //     printf("Invalid selection. Please try again.\n");
+                    //     break;
+                    // }
+                    int index = atoi(buf) - 1;
+                    if (index < 0 || index >= content_count) {
+                        printf("Invalid selection. Please try again.\n");
+                    } else {
+                        deregisterContent(s, pName, index, &afds);
+                    }
                 }
                 
                 // deregisterContent(s, pName, buf);
@@ -336,11 +338,8 @@ int main(int argc, char **argv)
             // Exit
             else if (strncmp(buf, "5", 1) == 0) {
                 //exit code
-                for (int i = 0; i < content_count; i++) {
-                    deregisterContent(s, pName, i);
-                }
-                close(s);
-                exit(0);
+                cleanupAndExit(s, pName, &afds);
+                
             }
             else{
                 printf("Invalid Option. Please try again.\n");
@@ -435,7 +434,7 @@ int registerContent(int udp_sock, char* pName, char* cName)
     return 0;
 }
 
-void deregisterContent(int udp_sock, char * pName, int index) {
+int deregisterContent(int udp_sock, char * pName, int index, fd_set *afds) {
     struct pdu deregPdu;
     struct rData deregData;
     
@@ -456,17 +455,24 @@ void deregisterContent(int udp_sock, char * pName, int index) {
         memcpy(&ackPdu, buf, sizeof(ackPdu));
         if (ackPdu.type != 'A') {
             printf("Error from Server: %s\n", ackPdu.data);
+            return -1;
         } else {
             printf("Content '%s' de-registered successfully!\n", deregData.cName);
+            
+            // Remove the TCP socket from fd_set before closing
+            FD_CLR(registered_content[index].tcp_socket, afds);
             close(registered_content[index].tcp_socket);
+            
             // Shift remaining entries
             for (int i = index; i < content_count - 1; i++) {
                 registered_content[i] = registered_content[i + 1];
             }
             content_count--;
+            return 0;
         }
     } else {
         printf("Failed to receive acknowledgment from server.\n");
+        return -1;
     }
 }
 
@@ -523,3 +529,13 @@ void handleContentDownload(int tcp_sock)
     close(tcp_sock);
     printf("File transfer complete for %s\n", sd.cName);
 }
+
+
+void cleanupAndExit(int udp_sock, char* pName, fd_set *afds)
+                {
+                    while (content_count > 0) {
+                        deregisterContent(udp_sock, pName, 0, afds);
+                    }
+                    close(udp_sock);
+                    exit(0);
+                }

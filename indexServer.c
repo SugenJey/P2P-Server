@@ -246,7 +246,7 @@ main(int argc, char *argv[])
 
             }
 
-            break;
+            continue;
         }
         default:
             // Error: Invalid Use
