@@ -44,13 +44,14 @@ int registeredCount = 0;
 
 struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount) {
     int leastUses = -1;
+    int i;
     struct indexData* result = NULL;
     char buffer[100];
     char temp[100];
     memcpy(temp, contentName, sizeof(temp)-1);
 
     temp[strcspn(temp, "\n")] = 0; // Remove newline character if present
-    for (int i = 0; i < registeredCount; i++) {
+    for (i = 0; i < registeredCount; i++) {
         if ( strcmp(RegisteredContent[i].contentName, temp) == 0 && (leastUses == -1 || RegisteredContent[i].uses < leastUses)) {
             leastUses = RegisteredContent[i].uses;
             result = &RegisteredContent[i];
@@ -76,8 +77,9 @@ main(int argc, char *argv[])
     time_t    now;            /* current time            */
     socklen_t alen;            /* from-address length        */
     struct  sockaddr_in sin; /* an Internet endpoint address         */
-        int     s, type;        /* socket descriptor and socket type    */
+    int     s, type;        /* socket descriptor and socket type    */
     int     port=3000;
+    int i;
 
     switch(argc){
         case 1:
@@ -170,7 +172,7 @@ main(int argc, char *argv[])
             struct pdu od;
             // create a string (limit to 100 bytes) with all registered content names
             char contentList[100] = "";
-            for (int i = 0; i < registeredCount; i++) {
+            for (i = 0; i < registeredCount; i++) {
                 /* Append safely: always compute remaining space in the destination
                  * and pass that as the maximum number of bytes to copy. This
                  * avoids passing the literal source length (which can equal
@@ -231,7 +233,7 @@ main(int argc, char *argv[])
             } else {
                 // use index to remove the content from RegisteredContent
                 // Shift elements to remove the content
-                for (int i = index; i < registeredCount - 1; i++) {
+                for (i = index; i < registeredCount - 1; i++) {
                     RegisteredContent[i] = RegisteredContent[i + 1];
                 }
                 registeredCount--;
@@ -260,7 +262,8 @@ main(int argc, char *argv[])
 
 
 int contentExists(char* cName, char* pName,struct indexData* RegisteredContent, int registeredCount) {
-    for (int i = 0; i < registeredCount; i++) {
+    int i;
+    for (i = 0; i < registeredCount; i++) {
         if ((strcmp(RegisteredContent[i].contentName, cName) == 0) && (strcmp(RegisteredContent[i].peerName, pName) == 0)) {
             return i; // Content exists
         }

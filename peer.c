@@ -65,6 +65,7 @@ int main(int argc, char **argv)
     char ans[BUFLEN];
     char buf[BUFLEN];
     char pName[BUFLEN];
+    int i;
     
     int port = 3000;
     struct hostent  *phe;   /* pointer to host information entry    */
@@ -151,9 +152,8 @@ int main(int argc, char **argv)
             ans[n] = 0;
             printf("From server: %s\n", ans);
         }
-
         /* Check all registered content TCP sockets for incoming connections */
-        for (int i = 0; i < content_count; i++) {
+        for (i = 0; i < content_count; i++) {
             if (FD_ISSET(registered_content[i].tcp_socket, &rfds)) {
                 struct sockaddr_in client_addr;
                 socklen_t alen = sizeof(client_addr);
@@ -294,7 +294,7 @@ int main(int argc, char **argv)
                 } else {
                     
                     printf("what would you like to de-register?(Enter file name):\n");
-                    for (int i = 0; i < content_count; i++) {
+                    for (i = 0; i < content_count; i++) {
                         printf("%2d) %s (peer: %s)\n", i + 1, registered_content[i].cName, pName);
                     }
                     memset(buf, '0', sizeof(buf)); // Clears the entire array
@@ -411,7 +411,7 @@ int registerContent(int udp_sock, char* pName, char* cName)
         close(tcp_sock);
         return -1;
     }
-
+    
     // wait for acknowledgment from server
     struct pdu ackPdu;
     read(udp_sock, &ackPdu, sizeof(ackPdu));
@@ -437,6 +437,7 @@ int registerContent(int udp_sock, char* pName, char* cName)
 int deregisterContent(int udp_sock, char * pName, int index, fd_set *afds) {
     struct pdu deregPdu;
     struct rData deregData;
+    int i;
     
     deregPdu.type = 'T'; // T for de-register
     strncpy(deregData.pName, pName, sizeof(deregData.pName) - 1); // Peer name
@@ -464,7 +465,7 @@ int deregisterContent(int udp_sock, char * pName, int index, fd_set *afds) {
             close(registered_content[index].tcp_socket);
             
             // Shift remaining entries
-            for (int i = index; i < content_count - 1; i++) {
+            for (i = index; i < content_count - 1; i++) {
                 registered_content[i] = registered_content[i + 1];
             }
             content_count--;
