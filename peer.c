@@ -221,13 +221,15 @@ int main(int argc, char **argv)
                 strncpy(sd.cName, buf, sizeof(sd.cName)-1);
 
                 memcpy(pduSend.data, &sd, sizeof(sd));
-                printf("Request sent to server for name: %s", pduSend.data);
-                printf("Request sent to server for file: %s", &pduSend.data[10]);
+                printf("Request sent to server for name: %s\n", pduSend.data);
+                printf("Request sent to server for file: %s\n", &pduSend.data[10]);
 
                 write(s, &pduSend, sizeof(pduSend));
                 memset(buf, '0', sizeof(buf)); // Clears the entire array
                 read(s, buf, BUFLEN);
                 memset(&pduSend, '0', sizeof(pduSend));
+
+                // TODO: I think this is where the problem is, reading into pduSend when it's type indexData or something
                 memcpy(&pduSend, buf, sizeof(pduSend));   
                 printf("Response from server received with type: %c\n", pduSend.type);
                 printf("Response from server received with data: %s\n", &pduSend.data[10]);
