@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 
 #define MAX 100
 
@@ -38,30 +39,11 @@ struct rData {
 
 int contentExists(char* cName, char* pName, struct indexData* RegisteredContent, int registeredCount);
 int sendErrorMessage(int s, struct sockaddr_in* fsin, socklen_t alen, const char* message);
+struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount);
 
 struct indexData RegisteredContent[MAX];
 int registeredCount = 0;
 
-struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount) {
-    int leastUses = -1;
-    int i;
-    struct indexData* result = NULL;
-    char buffer[100];
-    char temp[100];
-    memcpy(temp, contentName, sizeof(temp)-1);
-
-    temp[strcspn(temp, "\n")] = 0; // Remove newline character if present
-    for (i = 0; i < registeredCount; i++) {
-        if ( strcmp(RegisteredContent[i].contentName, temp) == 0 && (leastUses == -1 || RegisteredContent[i].uses < leastUses)) {
-            leastUses = RegisteredContent[i].uses;
-            result = &RegisteredContent[i];
-        } 
-    }
-    if (result != NULL) {
-        result->uses += 1; // Increment usage count
-    }
-    return result;
-}
 /*------------------------------------------------------------------------
  * main - Iterative UDP server for TIME service
  *------------------------------------------------------------------------
@@ -200,10 +182,11 @@ main(int argc, char *argv[])
         case 'S': {
             struct sData sd;
             memcpy(&sd, &spdu.data, sizeof(sd)-1);
-            printf("Request sent to server for name: %s", sd.pName);
-            printf("Request sent to server for file: %s", sd.cName); 
+            printf("Request sent to server for name: %s\n", sd.pName);
+            printf("Request sent to server for file: %s\n", sd.cName); 
 
             struct indexData* content = findContentByName(sd.cName, RegisteredContent, registeredCount);  
+            printf("Content: %s from Peer: %s at address: %s\n", sd.cName, content != NULL ? content->peerName : "N/A", content != NULL ? inet_ntoa(content->address.sin_addr) : "N/A");
             if(content != NULL) {
                 content->uses += 1; // Increment usage count
                 struct pdu responsePdu;
@@ -276,4 +259,27 @@ int sendErrorMessage(int s, struct sockaddr_in* fsin, socklen_t alen, const char
     errorPdu.type = 'E'; // E for Error
     strncpy(errorPdu.data, message, sizeof(errorPdu.data)-1);
     return sendto(s, &errorPdu, sizeof(errorPdu), 0, (struct sockaddr *)fsin, alen);
+}
+
+
+
+struct indexData* findContentByName(const char* contentName, struct indexData* RegisteredContent, int registeredCount) {
+    int leastUses = -1;
+    int i;
+    struct indexData* result = NULL;
+    char buffer[100];
+    char temp[100];
+    memcpy(temp, contentName, sizeof(temp)-1);
+
+    temp[strcspn(temp, "\n")] = 0; // Remove newline character if present
+    for (i = 0; i < registeredCount; i++) {
+        if ( strcmp(RegisteredContent[i].contentName, temp) == 0 && (leastUses == -1 || RegisteredContent[i].uses < leastUses)) {
+            leastUses = RegisteredContent[i].uses;
+            result = &RegisteredContent[i];
+        } 
+    }
+    if (result != NULL) {
+        result->uses += 1; // Increment usage count
+    }
+    return result;
 }

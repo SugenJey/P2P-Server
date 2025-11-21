@@ -235,52 +235,74 @@ int main(int argc, char **argv)
                 printf("Response from server received with data: %s\n", &pduSend.data[10]);
                 
                 if(pduSend.type == 'S'){
-                    struct  sockaddr_in address;
+                    struct sockaddr_in address;
                     memcpy(&address, &pduSend.data[10], sizeof(address));
-                    /* Allocate a socket */
-                    int s2;
-                    s2 = socket(AF_INET, SOCK_DGRAM, 0);
+                    
+                    /* Allocate a TCP socket for file transfer */
+                    int s2 = socket(AF_INET, SOCK_STREAM, 0);
                     if (s2 < 0) {
-                        fprintf(stderr, "Can't create socket \n");
+                        fprintf(stderr, "Can't create socket\n");
+                        continue;
                     }
-                                                                               
+                    
                     /* Connect the socket */
                     if (connect(s2, (struct sockaddr *)&address, sizeof(address)) < 0) {
-
-                        fprintf(stderr, "Can't connect to %s \n", host);
+                        fprintf(stderr, "Can't connect to peer\n");
+                        close(s2);
+                        continue;
                     }
 
-                    // Now request the file from the peer
+                    /* Request the file from the peer */
                     struct pdu filePdu;
-                    filePdu.type = 'D'; // D for Download Request
+                    filePdu.type = 'D'; /* D for Download Request */
                     memcpy(filePdu.data, &sd, sizeof(sd));
-
                     write(s2, &filePdu, sizeof(filePdu));
 
-                    // Receive the file data
-                    FILE* ptr;
-                    char fileBuf[101];
-
-                    ptr = fopen(sd.cName, "w+");        /* pointer to file */
+                    /* Receive and save the file */
+                    FILE* ptr = fopen(sd.cName, "w+");
                     if (ptr == NULL) {
                         printf("error opening file\n");
                         close(s2);
-                        cleanupAndExit(s, pName, &afds);
-                        return(0);    
+                        continue;
                     }
-                    int bytes_to_read;
+                    
                     struct pdu recvPdu;
-
-                    while (strchr(recvPdu.data,EOF) == NULL) {
-                        bytes_to_read = read(s2, fileBuf, 101);
-                        memcpy(&recvPdu, fileBuf, sizeof(recvPdu));                    
-                        fwrite(recvPdu.data, 1, bytes_to_read, ptr);
-                        printf("Received %d bytes of file data\n", bytes_to_read - 1);
+                    int done = 0;
+                    int bytes_read;
+                    
+                    while (!done) {
+                        memset(&recvPdu, 0, sizeof(recvPdu));
+                        bytes_read = read(s2, &recvPdu, sizeof(recvPdu));
+                        if (bytes_read <= 0) {
+                            printf("Connection closed or error reading\n");
+                            break;
+                        }
+                        
+                        if (recvPdu.type == 'E') {
+                            /* EOF marker received */
+                            done = 1;
+                            printf("End of file reached\n");
+                        } else if (recvPdu.type == 'D') {
+                            /* Write only non-null bytes (find the actual end of data) */
+                            int data_len = 100;
+                            /* Find last non-null byte */
+                            while (data_len > 0 && recvPdu.data[data_len - 1] == 0) {
+                                data_len--;
+                            }
+                            if (data_len > 0) {
+                                fwrite(recvPdu.data, 1, data_len, ptr);
+                                printf("Received %d bytes of file data\n", data_len);
+                            }
+                        } else if (recvPdu.type == 'R') {
+                            /* Error from peer */
+                            printf("Error from peer: %s\n", recvPdu.data);
+                            done = 1;
+                        }
                     }
+                    
                     fclose(ptr);
                     close(s2);
                     printf("File %s downloaded successfully from peer.\n", sd.cName);
-
                     registerContent(s, pName, sd.cName);
                 }
                 else if(pduSend.type == 'E'){
@@ -483,7 +505,7 @@ void handleContentDownload(int tcp_sock)
 {
     struct pdu reqPdu;
     
-    // Read download request
+    /* Read download request */
     if (read(tcp_sock, &reqPdu, sizeof(reqPdu)) <= 0) {
         close(tcp_sock);
         return;
@@ -494,13 +516,13 @@ void handleContentDownload(int tcp_sock)
         return;
     }
     
-    // Extract filename from request
+    /* Extract filename from request */
     struct sData sd;
     memcpy(&sd, reqPdu.data, sizeof(sd));
     
     printf("Serving file: %s to peer\n", sd.cName);
     
-    // Open and send the file
+    /* Open and send the file */
     FILE *fp = fopen(sd.cName, "rb");
     if (fp == NULL) {
         struct pdu errPdu;
@@ -514,18 +536,18 @@ void handleContentDownload(int tcp_sock)
     struct pdu dataPdu;
     size_t bytes_read;
     
-    while ((bytes_read = fread(dataPdu.data, 1, 100, fp)) > 0) {
+    while (1) {
+        memset(&dataPdu, 0, sizeof(dataPdu));  /* Clear entire PDU before each read */
+        bytes_read = fread(dataPdu.data, 1, 100, fp);
+        if (bytes_read <= 0) break;
+        
         dataPdu.type = 'D';
-        // Pad with zeros if less than 100 bytes
-        if (bytes_read < 100) {
-            memset(dataPdu.data + bytes_read, 0, 100 - bytes_read);
-        }
         write(tcp_sock, &dataPdu, sizeof(dataPdu));
     }
     
-    // Send EOF marker
+    /* Send EOF marker */
+    memset(&dataPdu, 0, sizeof(dataPdu));
     dataPdu.type = 'E';
-    memset(dataPdu.data, 0, 100);
     write(tcp_sock, &dataPdu, sizeof(dataPdu));
     
     fclose(fp);
