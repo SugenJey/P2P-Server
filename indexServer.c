@@ -135,6 +135,7 @@ main(int argc, char *argv[])
                 strncpy(newContent.peerName, rd.pName, sizeof(newContent.peerName)-1);
                 strncpy(newContent.contentName, rd.cName, sizeof(newContent.contentName)-1);
                 memcpy(&newContent.address, &rd.address, sizeof(rd.address));
+                newContent.address.sin_addr = fsin.sin_addr; // Set IP to client's IP
                 newContent.uses = 0; // Initialize usage count
                 RegisteredContent[registeredCount++] = newContent;
                 printf("Content %s registered successfully from peer %s.\n", rd.cName, rd.pName);

@@ -559,7 +559,11 @@ void handleContentDownload(int tcp_sock)
 void cleanupAndExit(int udp_sock, char* pName, fd_set *afds)
                 {
                     while (content_count > 0) {
-                        deregisterContent(udp_sock, pName, 0, afds);
+                        if (deregisterContent(udp_sock, pName, content_count - 1, afds) == -1) {
+                            printf("Failed to de-register content during cleanup.\n");
+                            exit(1);
+                        }
+                        
                     }
                     close(udp_sock);
                     exit(0);
